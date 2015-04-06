@@ -43,7 +43,7 @@ class LatentMatrixFactorization (
   }
 
   /** Java-friendly version of `trainOn`. */
-  def trainOn(data: JavaDStream[Rating]): Unit = trainOn(data.dstream)
+  def trainOn(data: JavaDStream[Rating[Long]]): Unit = trainOn(data.dstream)
 
   /**
    * Use the model to make predictions on batches of data from a DStream
@@ -152,7 +152,7 @@ class LatentMatrixFactorizationParams() {
   def getBiasStepSize: Double = biasStepSize
   def getStepDecay: Double = stepDecay
   def getLambda: Double = lambda
-  def getIter: Float = iter
+  def getIter: Int = iter
   def getIntermediateStorageLevel: StorageLevel = intermediateStorageLevel
 
   /** The rank of the matrices. Default = 20 */

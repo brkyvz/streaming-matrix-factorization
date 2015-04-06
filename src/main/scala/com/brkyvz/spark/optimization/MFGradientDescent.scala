@@ -4,15 +4,10 @@ import com.brkyvz.spark.recommendation._
 import edu.berkeley.cs.amplab.spark.indexedrdd.IndexedRDD
 import org.apache.spark.ml.recommendation.ALS.Rating
 import org.apache.spark.rdd.RDD
-import org.apache.spark.storage.StorageLevel
 
 /**
  * A local Stochastic Gradient Descent Optimizer specialized for Matrix Factorization.
- * @param stepSize The step size
- * @param biasStepSize The step size for updating the bias values. Usually smaller than stepSize.
- * @param stepDecay The factor to decay the step size after an iteration (over data set)
- * @param lambda The regularization parameter
- * @param iter Number of iterations
+ * @param params The parameters to use
  */
 private[spark] class MFGradientDescent(params: LatentMatrixFactorizationParams) {
   
@@ -33,10 +28,11 @@ private[spark] class MFGradientDescent(params: LatentMatrixFactorizationParams) 
     var userFeatures = initialModel.userFeatures
     var prodFeatures = initialModel.productFeatures
     val rank = initialModel.rank
-    val metadata = ratings.map(r => (r.rating, 1)).reduce((a, b) => (a._1 + b._1, a._2 + b._2))
+    val metadata: (Float, Long) = 
+      ratings.map(r => (r.rating, 1L)).reduce((a, b) => (a._1 + b._1, a._2 + b._2))
     val (globalBias, numExamples) = initialModel match {
       case streaming: StreamingLatentMatrixFactorizationModel =>
-        val examples = streaming.observedExamples + metadata._2
+        val examples: Long = streaming.observedExamples + metadata._2
         ((streaming.globalBias * streaming.observedExamples + metadata._1) / examples, examples)
       case _ => (metadata._1 / metadata._2, metadata._2)
     }
@@ -49,7 +45,7 @@ private[spark] class MFGradientDescent(params: LatentMatrixFactorizationParams) 
         .map { case (user, (rating, uFeatures)) =>
           (rating.item, (user, rating.rating, uFeatures))
         }.join(prodFeatures).map { case (item, ((user, rating, uFeatures), pFeatures)) =>
-          val step = gradientStep(rating, uFeatures, pFeatures, bias.value,
+          val step = MFGradientDescent.gradientStep(rating, uFeatures, pFeatures, bias.value,
             currentStepSize, currentBiasStepSize, lambda)
           ((user, step._1), (item, step._2))
         }.persist(intermediateStorageLevel)
@@ -79,8 +75,12 @@ private[spark] class MFGradientDescent(params: LatentMatrixFactorizationParams) 
           initialModel.minRating, initialModel.maxRating)
     }
   }
-  
-  private def gradientStep(
+}
+
+private[spark] object MFGradientDescent extends Serializable {
+
+  // Exposed for testing
+  private[spark] def gradientStep(
       rating: Float,
       userFeatures: LatentFactor,
       prodFeatures: LatentFactor,
@@ -93,14 +93,14 @@ private[spark] class MFGradientDescent(params: LatentMatrixFactorizationParams) 
     val user = userFeatures.vector
     val rank = user.length
     val prod = prodFeatures.vector
-    
+
     val featureGradients = Array.tabulate(rank) { i =>
       ((stepSize * (prod(i) * epsilon - lambda * user(i))).toFloat,
         (stepSize * (user(i) * epsilon - lambda * prod(i))).toFloat)
     }
     val userBiasGrad: Float = (biasStepSize * (epsilon - lambda * userFeatures.bias)).toFloat
     val prodBiasGrad: Float = (biasStepSize * (epsilon - lambda * prodFeatures.bias)).toFloat
-    
+
     val uFeatures = featureGradients.map(_._1)
     val pFeatures = featureGradients.map(_._2)
     (new LatentFactor(userBiasGrad, uFeatures), new LatentFactor(prodBiasGrad, pFeatures))

@@ -2,7 +2,6 @@ package com.brkyvz.spark.recommendation
 
 import java.util.Random
 
-import com.brkyvz.spark.optimization.MFGradientDescent
 import com.brkyvz.spark.utils.VectorUtils
 
 import edu.berkeley.cs.amplab.spark.indexedrdd.IndexedRDD
@@ -68,7 +67,7 @@ object LatentMatrixFactorizationModel {
 
     case class RatingInfo(var u: Long, var p: Long, var min: Float, var max: Float)
     
-    val (users, prods, minRat, maxRat) = 
+    val info: RatingInfo =
       ratingMatrix.treeAggregate(new RatingInfo(0L, 0L, Float.MaxValue, Float.MinPositiveValue))(
       seqOp = (base, rating) => {
         if (rating.user > base.u) base.u = rating.user
@@ -84,7 +83,8 @@ object LatentMatrixFactorizationModel {
         if (comp.min < base.min) base.min = comp.min
         base
       })
-    initialize(ratingMatrix.sparkContext, rank, users, prods, minRat, maxRat, seed, numPartitions)
+    initialize(ratingMatrix.sparkContext, rank, info.u + 1, info.p + 1, 
+      info.min, info.max, seed, numPartitions)
   }
 
   def initializeStreaming(
@@ -147,11 +147,11 @@ object LatentMatrixFactorizationModel {
   }
 }
 
-case class LatentFactor(bias: Float, vector: Array[Float]) {
+case class LatentFactor(var bias: Float, vector: Array[Float]) {
   
   def +=(other: LatentFactor): this.type = {
-    bias += other.bias
-    VectorUtils.sumInto(vector, other.vector)
+    bias = bias + other.bias
+    VectorUtils.addInto(vector, other.vector)
     this
   }
   

@@ -13,7 +13,7 @@ object VectorUtils {
     sum
   }
   
-  def sumInto(into: Array[Float], x: Array[Float]): Unit = {
+  def addInto(into: Array[Float], x: Array[Float]): Unit = {
     require(into.length == x.length, "Trying to add vectors with different lengths.")
     val len = into.length
     var i = 0

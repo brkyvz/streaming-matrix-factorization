@@ -13,3 +13,5 @@ sparkComponents ++= Seq("mllib", "streaming")
 spDependencies += "amplab/spark-indexedrdd:0.1"
 
 credentials += Credentials(Path.userHome / ".ivy2" / ".sbtcredentials")
+
+libraryDependencies += "org.scalatest" %% "scalatest" % "2.2.4" % "test"
