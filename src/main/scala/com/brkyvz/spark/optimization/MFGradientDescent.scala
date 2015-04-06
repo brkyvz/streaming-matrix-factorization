@@ -14,19 +14,20 @@ import org.apache.spark.storage.StorageLevel
  * @param lambda The regularization parameter
  * @param iter Number of iterations
  */
-private[spark] class MFGradientDescent(
-    stepSize: Double, 
-    biasStepSize: Double,
-    stepDecay: Double, 
-    lambda: Double, 
-    iter: Int) {
+private[spark] class MFGradientDescent(params: LatentMatrixFactorizationParams) {
   
-  def this() = this(0.001, 0.0001, 0.95, 0.1, 5)
+  def this() = this(new LatentMatrixFactorizationParams)
+  
+  val stepSize = params.getStepSize
+  val stepDecay = params.getStepDecay
+  val biasStepSize = params.getBiasStepSize
+  val lambda = params.getLambda
+  val iter = params.getIter
+  val intermediateStorageLevel = params.getIntermediateStorageLevel
   
   def train(
       ratings: RDD[Rating[Long]], 
-      initialModel: LatentMatrixFactorizationModel,
-      intermediateStorageLevel: StorageLevel): LatentMatrixFactorizationModel = {
+      initialModel: LatentMatrixFactorizationModel): LatentMatrixFactorizationModel = {
     
     val sc = ratings.sparkContext
     var userFeatures = initialModel.userFeatures
