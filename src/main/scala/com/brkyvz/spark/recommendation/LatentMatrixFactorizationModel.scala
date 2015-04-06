@@ -2,6 +2,7 @@ package com.brkyvz.spark.recommendation
 
 import java.util.Random
 
+import com.brkyvz.spark.optimization.MFGradientDescent
 import com.brkyvz.spark.utils.VectorUtils
 
 import edu.berkeley.cs.amplab.spark.indexedrdd.IndexedRDD
@@ -10,6 +11,7 @@ import org.apache.spark.mllib.random.{RandomDataGenerator, RandomRDDs}
 
 import org.apache.spark.ml.recommendation.ALS.Rating
 import org.apache.spark.rdd.RDD
+import org.apache.spark.storage.StorageLevel
 
 class LatentMatrixFactorizationModel(
     val rank: Int,
@@ -26,6 +28,23 @@ class LatentMatrixFactorizationModel(
     LatentMatrixFactorizationModel.getRating(u, p, globalBias)
   }
 
+  /**
+   * Predict the rating of many users for many products.
+   * The output RDD has an element per each element in the input RDD (including all duplicates)
+   * unless a user or product is missing in the training set.
+   *
+   * @param usersProducts  RDD of (user, product) pairs.
+   * @return RDD of Ratings.
+   */
+  def predict(usersProducts: RDD[(Long, Long)]): RDD[Rating[Long]] = {
+    val users = usersProducts.join(userFeatures).map { case (user, (product, uFeatures)) =>
+      (product, (user, uFeatures))
+    }
+    users.join(productFeatures).map { case (product, ((user, uFeatures), pFeatures)) =>
+        Rating(user, product, 
+          LatentMatrixFactorizationModel.getRating(uFeatures, pFeatures, globalBias))
+    }
+  }
 }
 
 case class StreamingLatentMatrixFactorizationModel(
@@ -68,6 +87,30 @@ object LatentMatrixFactorizationModel {
     initialize(ratingMatrix.sparkContext, rank, users, prods, minRat, maxRat, seed, numPartitions)
   }
 
+  def initializeStreaming(
+      sc: SparkContext,
+      rank: Int,
+      numUsers: Long,
+      numProducts: Long,
+      minRating: Float,
+      maxRating: Float): StreamingLatentMatrixFactorizationModel = {
+    val empty = LatentMatrixFactorizationModel.initialize(sc, rank, numUsers, numProducts, 
+      minRating, maxRating, System.currentTimeMillis(), sc.defaultMinPartitions)
+    new StreamingLatentMatrixFactorizationModel(empty.rank, empty.userFeatures, 
+      empty.productFeatures, empty.globalBias, 0L, empty.minRating, empty.maxRating)
+  }
+
+  def initialize(
+      sc: SparkContext,
+      rank: Int,
+      numUsers: Long,
+      numProducts: Long,
+      minRating: Float,
+      maxRating: Float): LatentMatrixFactorizationModel = {
+    LatentMatrixFactorizationModel.initialize(sc, rank, numUsers, numProducts, minRating, 
+      maxRating, System.currentTimeMillis(), sc.defaultMinPartitions)
+  }
+  
   def initialize(
       sc: SparkContext,
       rank: Int,
@@ -83,7 +126,7 @@ object LatentMatrixFactorizationModel {
       new LatentFactorGenerator(rank, minRating, maxRating), numProducts, numPartitions, seed)
     val user = IndexedRDD(userFactors.zipWithIndex().map(_.swap))
     val prod = IndexedRDD(prodFactors.zipWithIndex().map(_.swap))
-    new LatentMatrixFactorizationModel(rank, user, prod, 0f)
+    new LatentMatrixFactorizationModel(rank, user, prod, 0f, minRating, maxRating)
   }
   
   def getRating(
@@ -95,6 +138,7 @@ object LatentMatrixFactorizationModel {
   }
   
   def trainModel(
+      rank: Int,
       ratings: RDD[Rating[Long]],
       numUsers: Long,
       numProducts: Long,
@@ -102,9 +146,66 @@ object LatentMatrixFactorizationModel {
       maxRating: Float,
       stepSize: Double,
       biasStepSize: Double,
-      lambda: Double): LatentMatrixFactorizationModel = {
-    
-    
+      stepDecay: Double,
+      lambda: Double,
+      iter: Int,
+      intermediateStorageLevel: StorageLevel): LatentMatrixFactorizationModel = {
+    val initialModel = LatentMatrixFactorizationModel.initialize(ratings.sparkContext, rank, 
+      numUsers, numProducts, minRating, maxRating)
+    LatentMatrixFactorizationModel.trainModel(ratings, initialModel, stepSize, biasStepSize, 
+      stepDecay, lambda, iter, intermediateStorageLevel)
+  }
+
+  def trainModel(
+      ratings: RDD[Rating[Long]],
+      initialModel: LatentMatrixFactorizationModel,
+      stepSize: Double,
+      biasStepSize: Double,
+      stepDecay: Double,
+      lambda: Double,
+      iter: Int,
+      intermediateStorageLevel: StorageLevel): LatentMatrixFactorizationModel = {
+    val optimizer = new MFGradientDescent(stepSize, biasStepSize, stepDecay, lambda, iter)
+    optimizer.train(ratings, initialModel, intermediateStorageLevel)
+  }
+
+  def trainModel(
+      rank: Int,
+      ratings: RDD[Rating[Long]],
+      numUsers: Long,
+      numProducts: Long,
+      minRating: Float,
+      maxRating: Float,
+      intermediateStorageLevel: StorageLevel): LatentMatrixFactorizationModel = {
+    val initialModel = LatentMatrixFactorizationModel.initialize(ratings.sparkContext, rank,
+      numUsers, numProducts, minRating, maxRating)
+    LatentMatrixFactorizationModel.trainModel(ratings, initialModel, intermediateStorageLevel)
+  }
+
+  def trainModel(
+      ratings: RDD[Rating[Long]],
+      initialModel: LatentMatrixFactorizationModel,
+      intermediateStorageLevel: StorageLevel): LatentMatrixFactorizationModel = {
+    val optimizer = new MFGradientDescent()
+    optimizer.train(ratings, initialModel, intermediateStorageLevel)
+  }
+
+  def trainModel(
+      rank: Int,
+      ratings: RDD[Rating[Long]],
+      numUsers: Long,
+      numProducts: Long,
+      minRating: Float,
+      maxRating: Float): LatentMatrixFactorizationModel = {
+    LatentMatrixFactorizationModel.trainModel(rank, ratings, numUsers, numProducts, 
+      minRating, maxRating, StorageLevel.MEMORY_AND_DISK_SER)
+  }
+
+  def trainModel(
+      ratings: RDD[Rating[Long]],
+      initialModel: LatentMatrixFactorizationModel): LatentMatrixFactorizationModel = {
+    LatentMatrixFactorizationModel.trainModel(ratings, initialModel, 
+      StorageLevel.MEMORY_AND_DISK_SER)
   }
   
 }

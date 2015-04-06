@@ -14,12 +14,14 @@ import org.apache.spark.storage.StorageLevel
  * @param lambda The regularization parameter
  * @param iter Number of iterations
  */
-class MFGradientDescent(
+private[spark] class MFGradientDescent(
     stepSize: Double, 
     biasStepSize: Double,
     stepDecay: Double, 
     lambda: Double, 
     iter: Int) {
+  
+  def this() = this(0.001, 0.0001, 0.95, 0.1, 5)
   
   def train(
       ratings: RDD[Rating[Long]], 
@@ -38,7 +40,7 @@ class MFGradientDescent(
       case _ => (metadata._1 / metadata._2, metadata._2)
     }
     
-    for (i <- 0 to iter) {
+    for (i <- 0 until iter) {
       val bias = sc.broadcast(globalBias)
       val currentStepSize = stepSize * math.pow(stepDecay, i)
       val currentBiasStepSize = biasStepSize * math.pow(stepDecay, i)

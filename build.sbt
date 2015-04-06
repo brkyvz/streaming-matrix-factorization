@@ -14,7 +14,7 @@ version := "0.1.0"
 licenses := Seq("Apache-2.0" -> url("http://opensource.org/licenses/Apache-2.0"))
 
 // Add Spark components this package depends on, e.g, "mllib", ....
-sparkComponents += "mllib"
+sparkComponents ++= Seq("mllib", "streaming")
 
 // uncomment and change the value below to change the directory where your zip artifact will be created
 // spDistDirectory := target.value
