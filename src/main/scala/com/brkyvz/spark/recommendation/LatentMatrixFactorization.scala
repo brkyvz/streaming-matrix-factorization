@@ -1,6 +1,7 @@
 package com.brkyvz.spark.recommendation
 
 import org.apache.spark.Logging
+import org.apache.spark.api.java.JavaRDD
 import org.apache.spark.ml.recommendation.ALS.Rating
 import org.apache.spark.rdd.RDD
 import org.apache.spark.storage.StorageLevel
@@ -13,37 +14,31 @@ import com.brkyvz.spark.optimization.MFGradientDescent
 
 /**
  * Trains a Matrix Factorization Model for Recommendation Systems. The model consists of
- * user factors (User Matrix, `U`), product factors (Product Matrix, `P^T^`), 
- * user biases (user bias vector, `bu`), product biases (product bias vector, `bp`) and 
+ * user factors (User Matrix, `U`), product factors (Product Matrix, `P^T^`),
+ * user biases (user bias vector, `bu`), product biases (product bias vector, `bp`) and
  * the global bias (global average, `mu`).
- * 
+ *
  * Trained on a static RDD, but can make predictions on a DStream or RDD.
- *  
- * @param numUsers The number of users
- * @param numProducts The number of products
+ *
  * @param params Parameters for training
  */
-class LatentMatrixFactorization (
-    numUsers: Long,
-    numProducts: Long,
-    params: LatentMatrixFactorizationParams) extends Logging {
-  
-  def this(nUsers: Long, nProducts: Long) = 
-    this(nUsers, nProducts, new LatentMatrixFactorizationParams)
+class LatentMatrixFactorization (params: LatentMatrixFactorizationParams) extends Logging {
+
+  def this() = this(new LatentMatrixFactorizationParams)
 
   protected val optimizer = new MFGradientDescent(params)
-  
+
   protected var model: Option[LatentMatrixFactorizationModel] = None
-  
+
   def trainOn(ratings: RDD[Rating[Long]]): LatentMatrixFactorizationModel = {
-    val initialModel = LatentMatrixFactorizationModel.initialize(ratings.sparkContext,
-      params.getRank, numUsers, numProducts, params.getMinRating, params.getMaxRating)
-    model = Some(optimizer.train(ratings, initialModel))
+    val (initialModel, numExamples) =
+      LatentMatrixFactorizationModel.initialize(ratings, params, model, isStreaming = false)
+    model = Some(optimizer.train(ratings, initialModel, numExamples))
     model.get
   }
 
   /** Java-friendly version of `trainOn`. */
-  def trainOn(data: JavaDStream[Rating[Long]]): Unit = trainOn(data.dstream)
+  def trainOn(ratings: JavaRDD[Rating[Long]]): Unit = trainOn(ratings.rdd)
 
   /**
    * Use the model to make predictions on batches of data from a DStream
@@ -53,7 +48,7 @@ class LatentMatrixFactorization (
    */
   def predictOn(data: DStream[(Long, Long)]): DStream[Rating[Long]] = {
     if (model.isEmpty) {
-      throw new IllegalArgumentException("Model must be initialized before starting prediction.")
+      throw new IllegalStateException("Model must be trained before starting prediction.")
     }
     data.transform((rdd, time) => model.get.predict(rdd))
   }
@@ -85,18 +80,12 @@ class LatentMatrixFactorization (
  *
  * Trained on a DStream, but can make predictions on a DStream or RDD.
  *
- * @param numUsers The number of users
- * @param numProducts The number of products
  * @param params Parameters for training
  */
-class StreamingLatentMatrixFactorization(
-    numUsers: Long,
-    numProducts: Long,
-    params: LatentMatrixFactorizationParams) extends
-  LatentMatrixFactorization(numUsers, numProducts, params) {
+class StreamingLatentMatrixFactorization(params: LatentMatrixFactorizationParams)
+  extends LatentMatrixFactorization(params) {
 
-  def this(nUsers: Long, nProducts: Long) =
-    this(nUsers, nProducts, new LatentMatrixFactorizationParams)
+  def this() = this(new LatentMatrixFactorizationParams)
 
   /** Return the latest model. */
   def latestModel() = model.get.asInstanceOf[StreamingLatentMatrixFactorizationModel]
@@ -111,20 +100,9 @@ class StreamingLatentMatrixFactorization(
    */
   def trainOn(data: DStream[Rating[Long]]): Unit = {
     data.foreachRDD { (rdd, time) =>
-      val initialModel =
-        model match {
-          case Some(m) =>
-            m
-          case None =>
-            LatentMatrixFactorizationModel.initializeStreaming(
-              data.context.sparkContext, 
-              params.getRank, 
-              numUsers, 
-              numProducts,
-              params.getMinRating,
-              params.getMaxRating)
-        }
-      model = Some(optimizer.train(rdd, initialModel).
+      val (initialModel, numExamples) =
+        LatentMatrixFactorizationModel.initialize(rdd, params, model, isStreaming = true)
+      model = Some(optimizer.train(rdd, initialModel, numExamples).
         asInstanceOf[StreamingLatentMatrixFactorizationModel])
       logInfo(s"Model updated at time $time")
     }
@@ -138,13 +116,14 @@ class LatentMatrixFactorizationParams() {
   private var rank: Int = 20
   private var minRating: Float = 1f
   private var maxRating: Float = 5f
-  private var stepSize: Double = 0.001
-  private var biasStepSize: Double = 0.0001
-  private var stepDecay: Double = 0.95
-  private var lambda: Double = 0.1
-  private var iter: Int = 5
+  private var stepSize: Double = 1.0
+  private var biasStepSize: Double = 1.0
+  private var stepDecay: Double = 0.9
+  private var lambda: Double = 10.0
+  private var iter: Int = 10
   private var intermediateStorageLevel: StorageLevel = StorageLevel.MEMORY_AND_DISK_SER
-  
+  private var seed: Long = System.currentTimeMillis()
+
   def getRank: Int = rank
   def getMinRating: Float = minRating
   def getMaxRating: Float = maxRating
@@ -154,6 +133,7 @@ class LatentMatrixFactorizationParams() {
   def getLambda: Double = lambda
   def getIter: Int = iter
   def getIntermediateStorageLevel: StorageLevel = intermediateStorageLevel
+  def getSeed: Long = seed
 
   /** The rank of the matrices. Default = 20 */
   def setRank(x: Int): this.type = {
@@ -200,5 +180,10 @@ class LatentMatrixFactorizationParams() {
     intermediateStorageLevel = x
     this
   }
-  
+
+  /** The number of iterations for Gradient Descent. Default = 5 */
+  def setSeed(x: Long): this.type = {
+    seed = x
+    this
+  }
 }
