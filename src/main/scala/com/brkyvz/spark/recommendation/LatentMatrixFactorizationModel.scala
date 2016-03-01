@@ -2,7 +2,11 @@ package com.brkyvz.spark.recommendation
 
 import java.util.Random
 
+<<<<<<< HEAD
 import edu.berkeley.cs.amplab.spark.indexedrdd.{KeySerializer, IndexedRDD}
+=======
+import edu.berkeley.cs.amplab.spark.indexedrdd.IndexedRDD
+>>>>>>> develop
 
 import org.apache.spark.Logging
 import org.apache.spark.ml.recommendation.ALS.Rating
@@ -12,8 +16,13 @@ import com.brkyvz.spark.utils.VectorUtils
 
 class LatentMatrixFactorizationModel(
     val rank: Int,
+<<<<<<< HEAD
     val userFeatures: IndexedRDD[Long, LatentFactor], // bias and the user row
     val productFeatures: IndexedRDD[Long, LatentFactor], // bias and the product row
+=======
+    val userFeatures: IndexedRDD[LatentFactor], // bias and the user row
+    val productFeatures: IndexedRDD[LatentFactor], // bias and the product row
+>>>>>>> develop
     val globalBias: Float,
     val minRating: Float,
     val maxRating: Float) extends Logging {
@@ -52,8 +61,13 @@ class LatentMatrixFactorizationModel(
 
 case class StreamingLatentMatrixFactorizationModel(
     override val rank: Int,
+<<<<<<< HEAD
     override val userFeatures: IndexedRDD[Long, LatentFactor], // bias and the user row
     override val productFeatures: IndexedRDD[Long, LatentFactor], // bias and the product row
+=======
+    override val userFeatures: IndexedRDD[LatentFactor], // bias and the user row
+    override val productFeatures: IndexedRDD[LatentFactor], // bias and the product row
+>>>>>>> develop
     override val globalBias: Float,
     observedExamples: Long,
     override val minRating: Float,
@@ -80,7 +94,10 @@ object LatentMatrixFactorizationModel extends Serializable with Logging {
     val randGenerator =
       new LatentFactorGenerator(rank, minRating, maxRating)
 
+<<<<<<< HEAD
     import IndexedRDD._
+=======
+>>>>>>> develop
     // Generate random entries for missing user-product factors
     val usersAndRatings = ratings.map(r => (r.user, r))
     val productsAndRatings = ratings.map(r => (r.item, r))
@@ -99,7 +116,10 @@ object LatentMatrixFactorizationModel extends Serializable with Logging {
 
     userFeatures = IndexedRDD(usersAndRatings.fullOuterJoin(userFeatures)
       .mapPartitionsWithIndex { case (partitionId, iterator) =>
+<<<<<<< HEAD
         //println("LMFM-pid-user:" + partitionId)
+=======
+>>>>>>> develop
         randGenerator.setSeed(seed + 2 << 16 + partitionId)
         iterator.map { case (user, (rating, uFeatures)) =>
           (user, uFeatures.getOrElse(randGenerator.nextValue()))
@@ -108,15 +128,21 @@ object LatentMatrixFactorizationModel extends Serializable with Logging {
 
     prodFeatures = IndexedRDD(productsAndRatings.fullOuterJoin(prodFeatures)
       .mapPartitionsWithIndex { case (partitionId, iterator) =>
+<<<<<<< HEAD
         //println("LMFM-pid-item:" + partitionId)
+=======
+>>>>>>> develop
         randGenerator.setSeed(seed + 2 << 32 + partitionId)
         iterator.map { case (user, (rating, pFeatures)) =>
           (user, pFeatures.getOrElse(randGenerator.nextValue()))
         }
     })
 
+<<<<<<< HEAD
     //println("LMFM-Feature-Complete")
 
+=======
+>>>>>>> develop
     val (ratingSum, numRatings) =
       ratings.map(r => (r.rating, 1L)).reduce((a, b) => (a._1 + b._1, a._2 + b._2))
 

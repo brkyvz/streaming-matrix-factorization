@@ -30,8 +30,11 @@ private[spark] class MFGradientDescent(params: LatentMatrixFactorizationParams) 
     val intermediateStorageLevel = params.getIntermediateStorageLevel
     val rank = params.getRank
 
+<<<<<<< HEAD
     import IndexedRDD._
 
+=======
+>>>>>>> develop
     for (i <- 0 until iter) {
       val currentStepSize = stepSize * math.pow(stepDecay, i)
       val currentBiasStepSize = biasStepSize * math.pow(stepDecay, i)
