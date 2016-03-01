@@ -1,13 +1,9 @@
 package com.brkyvz.spark.recommendation
 
-<<<<<<< HEAD
 import java.io.PrintWriter
 
 import edu.berkeley.cs.amplab.spark.indexedrdd.IndexedRDD
 import org.apache.spark.{SparkContext, Logging}
-=======
-import org.apache.spark.Logging
->>>>>>> develop
 import org.apache.spark.api.java.JavaRDD
 import org.apache.spark.ml.recommendation.ALS.Rating
 import org.apache.spark.rdd.RDD
@@ -67,12 +63,8 @@ class LatentMatrixFactorization (params: LatentMatrixFactorizationParams) extend
 
   /**
    * Use the model to make predictions on the values of a DStream and carry over its keys.
-<<<<<<< HEAD
     *
     * @param data DStream containing (user, product) tuples
-=======
-   * @param data DStream containing (user, product) tuples
->>>>>>> develop
    * @tparam K key type
    * @return DStream containing the input keys and the rating predictions as values
    */
@@ -82,7 +74,6 @@ class LatentMatrixFactorization (params: LatentMatrixFactorizationParams) extend
     }
     data.transform((rdd, time) => rdd.keys.zip(model.get.predict(rdd.values)))
   }
-<<<<<<< HEAD
 
   /**
     * 自建函数，保存模型
@@ -131,8 +122,6 @@ class LatentMatrixFactorization (params: LatentMatrixFactorizationParams) extend
     model = Some(initalModel)
   }
 
-=======
->>>>>>> develop
 }
 
 /**
