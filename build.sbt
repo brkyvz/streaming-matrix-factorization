@@ -16,7 +16,7 @@ licenses := Seq("Apache-2.0" -> url("http://opensource.org/licenses/Apache-2.0")
 =======
 sparkComponents ++= Seq("mllib", "streaming")
 
-spDependencies ++= Seq("amplab/spark-indexedrdd:0.1", "holdenk/spark-testing-base:1.3.0_0.0.5")
+spDependencies ++= Seq("amplab/spark-indexedrdd:0.3", "holdenk/spark-testing-base:1.3.0_0.0.5")
 
 >>>>>>> develop
 credentials += Credentials(Path.userHome / ".ivy2" / ".sbtcredentials")
