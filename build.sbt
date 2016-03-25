@@ -1,22 +1,31 @@
 scalaVersion := "2.10.4"
 
+<<<<<<< HEAD
+name := "streaming-matrix-factorization"
+=======
 sparkVersion := "1.3.0"
 
 spName := "brkyvz/streaming-matrix-factorization"
+>>>>>>> develop
 
 version := "0.1.0"
 
 licenses := Seq("Apache-2.0" -> url("http://opensource.org/licenses/Apache-2.0"))
 
+<<<<<<< HEAD
+=======
 sparkComponents ++= Seq("mllib", "streaming")
 
-spDependencies ++= Seq("amplab/spark-indexedrdd:0.1", "holdenk/spark-testing-base:1.3.0_0.0.5")
+spDependencies ++= Seq("amplab/spark-indexedrdd:0.3", "holdenk/spark-testing-base:1.3.0_0.0.5")
 
+>>>>>>> develop
 credentials += Credentials(Path.userHome / ".ivy2" / ".sbtcredentials")
 
 libraryDependencies += "org.scalatest" %% "scalatest" % "2.2.4" % "test"
 
 parallelExecution in Test := false
+<<<<<<< HEAD
+=======
 
 spShortDescription := "Streaming Recommendation Engine using matrix factorization with user and product bias"
 
@@ -32,3 +41,4 @@ spDescription :=
     | or a single RDD.
     |
   """.stripMargin
+>>>>>>> develop

@@ -1,6 +1,9 @@
 package com.brkyvz.spark.recommendation
 
-import org.apache.spark.Logging
+import java.io.PrintWriter
+
+import edu.berkeley.cs.amplab.spark.indexedrdd.IndexedRDD
+import org.apache.spark.{SparkContext, Logging}
 import org.apache.spark.api.java.JavaRDD
 import org.apache.spark.ml.recommendation.ALS.Rating
 import org.apache.spark.rdd.RDD
@@ -60,7 +63,8 @@ class LatentMatrixFactorization (params: LatentMatrixFactorizationParams) extend
 
   /**
    * Use the model to make predictions on the values of a DStream and carry over its keys.
-   * @param data DStream containing (user, product) tuples
+    *
+    * @param data DStream containing (user, product) tuples
    * @tparam K key type
    * @return DStream containing the input keys and the rating predictions as values
    */
@@ -70,6 +74,54 @@ class LatentMatrixFactorization (params: LatentMatrixFactorizationParams) extend
     }
     data.transform((rdd, time) => rdd.keys.zip(model.get.predict(rdd.values)))
   }
+
+  /**
+    * 自建函数，保存模型
+    * unchecked
+    * @param model
+    * @param path
+    */
+  def saveModel(model: LatentMatrixFactorizationModel, path: String) = {
+    require(model != null)
+    //val pt = new Path(path)
+    //pt.deleteIfExists()
+    model.productFeatures.saveAsObjectFile(path + "/" + "itemFeature")
+    model.userFeatures.saveAsObjectFile(path + "/" + "userFeature")
+    val pw = new PrintWriter(path + "/" + "other")
+    pw.println(model.globalBias)
+    pw.println(model.maxRating)
+    pw.println(model.minRating)
+    pw.print(model.rank)
+    pw.close()
+  }
+
+  /**
+    * 自建函数 加载模型
+    * unchecked
+    * @param sc
+    * @param path
+    * @return
+    */
+  def loadModel(sc: SparkContext, path: String): LatentMatrixFactorizationModel = {
+    //val pt = new Path(path)
+    //require(pt.canRead)
+    import IndexedRDD._
+    val vf = IndexedRDD(sc.objectFile[(Long, LatentFactor)](path + "/" + "itemFeature"))
+    val uf = IndexedRDD(sc.objectFile[(Long, LatentFactor)](path + "/" + "userFeature"))
+    val otherParams = sc.textFile(path + "/" + "other").collect()
+    require(otherParams.length == 4)
+    new LatentMatrixFactorizationModel(otherParams(3).toInt, uf, vf, otherParams(0).toFloat, otherParams(2).toFloat, otherParams(1).toFloat)
+  }
+
+  /**
+    * 自建函数 设置当前的初始化模型
+    *
+    * @param initalModel
+    */
+  def setModel(initalModel: LatentMatrixFactorizationModel) = {
+    model = Some(initalModel)
+  }
+
 }
 
 /**
